@@ -1,6 +1,7 @@
 attrs==17.4.0
 flake8==3.5.0
 mccabe==0.6.1
+PdbSublimeTextSupport==0.2
 pluggy==0.6.0
 py==1.5.2
 pycodestyle==2.3.1
