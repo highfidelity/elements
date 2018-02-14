@@ -1,21 +1,20 @@
 import contextlib
 
+from .error import Error
+
 
 class Blockchain:
-    class Error(Exception): pass  # noqa: E701
-    class CannotAddTransactionError(Error): pass  # noqa: E301, E701
+    class CannotAddTransactionError(Error):
+        pass
 
-    def __init__(self):
-        self._nodes = None
-
+    @classmethod
     @contextlib.contextmanager
-    def nodes(self):
-        self._start_nodes()
-        yield self._nodes
-        self._stop_nodes()
+    def node_pair(cls):
+        with cls.node('master') as master:
+            with cls.node('slave') as slave:
+                yield master, slave
 
-    def _start_nodes(self):
-        raise NotImplementedError
-
-    def _stop_nodes(self):
+    @classmethod
+    @contextlib.contextmanager
+    def node(cls, daemon_name):
         raise NotImplementedError
