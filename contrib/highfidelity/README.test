@@ -8,6 +8,9 @@ Then:
     pyenv virtualenv 3.6.4 elements
     pip install -f requirements.txt
 
+Having trouble with `pyenv install`?
+See: https://github.com/pyenv/pyenv/wiki/Common-build-problems
+
 
 RUN THE TESTS
 
