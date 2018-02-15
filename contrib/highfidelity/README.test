@@ -19,9 +19,9 @@ tests:
     pytest test_elements_sanity.py -s
 
 
-To test various use cases involving a master node and a "slave" node
-that enables a third-party blockchain exporer but does not enable the
-submission of transactions or the signing of blocks:
+[WORK IN PROGRESS] To test various use cases involving a master node and
+a "slave" node that enables a third-party blockchain exporer but does
+not enable the submission of transactions or the signing of blocks:
 
     pytest test_explorer_node.py -s
 
