@@ -101,7 +101,7 @@ class Elements(Blockchain):
 
     @classmethod
     @contextlib.contextmanager
-    def node(cls, node_name, _warm_up_master=True, _ensure_signing_key=True):
+    def node(cls, node_name, _warm_up_master=False, _ensure_signing_key=True):
         if _ensure_signing_key:
             cls._ensure_signing_key()
         try:

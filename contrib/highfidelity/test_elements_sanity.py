@@ -65,7 +65,7 @@ def test_immediate_generate_blocks():
         logging.info(f'=== {n+1} of {N_RUNS}: test_immediate_generate_blocks')
         kill_all_elementd()
         try:
-            with Elements.node('master', _warm_up_master=False):
+            with Elements.node('master'):
                 logging.info(f'=== test {n+1} of {N_RUNS} passed')
                 passed.append(n)
         except (ConnectionRefusedError, JSONRPCException) as e:
@@ -95,7 +95,9 @@ def test_delayed_generate_blocks():
         logging.info(f'=== {n+1} of {N_RUNS}: test_immediate_generate_blocks')
         kill_all_elementd()
         try:
-            with Elements.node('master'):
+            # _warm_up_master=True means: Start the master daemon then
+            # before issuing any commands to it sleep for awhile.
+            with Elements.node('master', _warm_up_master=True):
                 logging.info(f'=== test {n+1} of {N_RUNS} passed')
                 passed.append(n)
         except (ConnectionRefusedError, JSONRPCException) as e:
