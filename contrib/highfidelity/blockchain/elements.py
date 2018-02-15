@@ -6,10 +6,9 @@ import subprocess
 import tempfile
 import time
 
-from ..test_framework.authproxy import AuthServiceProxy
+from ..test_framework.authproxy import AuthServiceProxy, JSONRPCException
 from .blockchain import Blockchain
 from .error import Error
-# from .node import Node
 
 # -connect=<ip> -- connect only to the specified node
 # -bind=<addr> -- bind to given address and always listen
@@ -45,10 +44,13 @@ class Elements(Blockchain):
         _logger = logging.getLogger('Node')
 
         def __init__(self, node_name, total_attempts=5, interval_seconds=2.0):
-            self._proxy = self._auth_service_proxy(node_name)
+            self._node_name = node_name
+            self._is_up = False
+            self._proxy = None
 
-        def rpc(self, name, *args):
-            return getattr(self._proxy, name)(*args)
+        def rpc(self, command, *args):
+            self._ensure_is_up()
+            return getattr(self._proxy, command)(*args)
 
         def _auth_service_proxy(self, node_name):
             config = self._load_config(node_name)
@@ -76,20 +78,54 @@ class Elements(Blockchain):
                 raise self.MissingConfigKeysError(
                     f'{filename} is missing {missing_config_keys}')
 
+        def _ensure_is_up(self):
+            if None is self._proxy:
+                self._proxy = self._auth_service_proxy(self._node_name)
+            if not self._is_up:
+                for _ in range(5):
+                    try:
+                        self._proxy.ping()
+                    except ConnectionRefusedError:
+                        logging.debug('waiting for daemon to start...')
+                        time.sleep(1)
+                        self._proxy = self._auth_service_proxy(self._node_name)  # noqa: E501
+                    except JSONRPCException as e:
+                        msg = f'daemon started but is not ready: {e.error}'
+                        logging.debug(msg)
+                        time.sleep(1)
+                        self._proxy = self._auth_service_proxy(self._node_name)  # noqa: E501
+                    else:
+                        self._is_up = True
+                        return
+                raise ConnectionRefusedError('giving up; daemon unavailable')
+
     @classmethod
     @contextlib.contextmanager
-    def node(cls, node_name, _ensure_signing_key=True):
+    def node(cls, node_name, _warm_up_master=True, _ensure_signing_key=True):
         if _ensure_signing_key:
             cls._ensure_signing_key()
-        with tempfile.TemporaryDirectory() as datadir:
-            process = cls._spawn_node_process(node_name, datadir)
-            time.sleep(10)
-            node = cls.Node(node_name)
-            if 'master' == node_name:
-                node.rpc('importprivkey', cls.signing_privkey)
-                cls._generate_initial_signed_blocks(node)
-            yield node
-            cls._stop_node_process(process, node, node_name)
+        try:
+            with tempfile.TemporaryDirectory() as datadir:
+                process = cls._spawn_node_process(node_name, datadir)
+                node = cls.Node(node_name)
+                if 'master' == node_name:
+                    if _warm_up_master:
+                        cls._logger.info('pause after starting master...')
+                        time.sleep(10)
+                    node.rpc('importprivkey', cls.signing_privkey)
+                    cls._generate_initial_signed_blocks(node)
+                yield node
+                cls._stop_node_process(process, node, node_name)
+        except OSError as e:
+            # The daemon may continue writing to the datadir and so
+            # TemporaryDirectory's attempt to clean up the directory
+            # may fail. Ignore this.
+            #
+            # 66 corresponds to "Directory not empty".
+            if 66 != e.errno:
+                raise
+        cls._logger.info(f'pause after terminating {node_name}...')
+        time.sleep(5)
 
     @classmethod
     def _generate_initial_signed_blocks(cls, proxy):
@@ -107,7 +143,10 @@ class Elements(Blockchain):
     @classmethod
     def _ensure_signing_key(cls):
         if not cls.signing_pubkey:
-            with cls.node('bootstrap_signing_key', False) as node:
+            with cls.node(
+                'bootstrap_signing_key',
+                _ensure_signing_key=False
+            ) as node:
                 address = node.rpc('getnewaddress')
                 result = node.rpc('validateaddress', address)
                 assert result['isvalid']

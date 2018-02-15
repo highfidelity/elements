@@ -11,4 +11,17 @@ Then:
 
 RUN THE TESTS
 
-    pytest
+To ensure that Elements can perform the basic function of building a
+blockchain from scratch with signed blocks. Also tests the sanity of our
+Elements class implementation, which is used in test_secondary_node.py
+tests:
+
+    pytest test_elements_sanity.py -s
+
+
+To test various use cases involving a master node and a "slave" node
+that enables a third-party blockchain exporer but does not enable the
+submission of transactions or the signing of blocks:
+
+    pytest test_explorer_node.py -s
+
