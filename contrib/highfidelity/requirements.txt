@@ -1,5 +1,7 @@
 attrs==17.4.0
 flake8==3.5.0
+gevent==1.2.2
+greenlet==0.4.13
 mccabe==0.6.1
 PdbSublimeTextSupport==0.2
 pluggy==0.6.0

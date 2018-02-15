@@ -138,7 +138,7 @@ class Elements(Blockchain):
         sign1 = proxy.rpc('signblock', blockhex)
         blockresult = proxy.rpc('combineblocksigs', blockhex, [sign1])
         signedblock = blockresult["hex"]
-        proxy.rpc('submitblock', signedblock)
+        return proxy.rpc('submitblock', signedblock)
 
     @classmethod
     def _ensure_signing_key(cls):

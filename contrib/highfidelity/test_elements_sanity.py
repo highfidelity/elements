@@ -1,6 +1,10 @@
+from gevent import monkey; monkey.patch_all()  # noqa: E702
+
 import logging
 import subprocess
 import time
+
+import gevent
 
 from .test_framework.authproxy import JSONRPCException
 from .blockchain import Elements
@@ -100,3 +104,46 @@ def test_delayed_generate_blocks():
     logging.info(f'passed {len(passed)} of {N_RUNS}: {passed}')
     logging.error(f'exceptions: {exceptions}')
     assert not exceptions
+
+
+def test_async_delayed_generate_blocks():
+    # Create a master daemon. Fire up an increasing number of asynchronous
+    # clients that attempt to create blocks at the master daemon. When
+    # a client fails with an unexpected result the test is failed.
+    class ConcurrencyException(Exception):
+        pass
+
+    class UnexpectedResult(Exception):
+        pass
+
+    def create_block():
+        node = Elements.Node('master')
+        try:
+            result = Elements._generate_block(node)
+        except JSONRPCException as e:
+            if 'already have block' != e.error['message']:
+                raise
+        else:
+            EXPECTED_RESULTS = (None, 'duplicate', 'duplicate-inconclusive')
+            if result not in EXPECTED_RESULTS:
+                raise UnexpectedResult(result)
+
+    # Create a master daemon with an initial blockchain...
+    with Elements.node('master'):
+        # ... and with ever increasing concurrency ...
+        for concurrency in range(100):
+            # ... fire up a asynchronous clients that attempt to
+            # generate blocks at the master daemon.
+            greenlets = [
+                gevent.spawn(create_block) for _ in range(concurrency)]
+            gevent.joinall(greenlets)
+            # If any client raised an Exception the test is over.
+            if not all(None is greenlet.exception for greenlet in greenlets):
+                # Report the extent to which the test succeeded and the
+                # exceptions that caused it to fail.
+                logger.critical(
+                    f'async jobs failed with concurrency {concurrency}')
+                for greenlet in greenlets:
+                    if None is not greenlet.exception:
+                        logger.critical(str(greenlet.exception))
+                assert False
