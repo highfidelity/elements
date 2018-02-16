@@ -111,7 +111,7 @@ class Elements(Blockchain):
                 if 'master' == node_name:
                     if _warm_up_master:
                         cls._logger.info('pause after starting master...')
-                        time.sleep(10)
+                        time.sleep(5)
                     node.rpc('importprivkey', cls.signing_privkey)
                     cls._generate_initial_signed_blocks(node)
                 yield node
@@ -125,7 +125,7 @@ class Elements(Blockchain):
             if 66 != e.errno:
                 raise
         cls._logger.info(f'pause after terminating {node_name}...')
-        time.sleep(5)
+        time.sleep(2)
 
     @classmethod
     def _generate_initial_signed_blocks(cls, proxy):
