@@ -38,8 +38,8 @@ if len(sys.argv) == 3:  # specifically for pegin, below.
     MAINCHAIN_PATH=sys.argv[2]
 else:
     MAINCHAIN_PATH="../bitcoin/src/bitcoind"
-    
-# The isbitcoin parts of the code illustrate the differences between bitcoin and elements.    
+
+# The isbitcoin parts of the code illustrate the differences between bitcoin and elements.
 isbitcoin = 'bitcoin' in SIDECHAIN_PATH
 
 # Run in "regtest" rather than "main".
@@ -122,7 +122,7 @@ ebconf = loadConfig(confpathb)
 
 ## Startup
 
-if pegin:    
+if pegin:
     eb = start_mainchain(eb_datadir, ebconf)
     time.sleep(5)
 
@@ -229,7 +229,7 @@ def transact(inputs, outputs, debug = False, output_asset_ids = {}, signers = [{
             if address != "fee":
                 bitcoin_outputs[address] = amount
         outputs = bitcoin_outputs
-    
+
     if debug:
         dp("inputs", inputs)
         dp("outputs", outputs)
@@ -243,6 +243,7 @@ def transact(inputs, outputs, debug = False, output_asset_ids = {}, signers = [{
 
     signedtx = rawtx
     for signer in signers:
+        import pdb; pdb.set_trace()  # noqa
         details = signer["details"] if "details" in signer else getunspent_details(inputs)
         signedtx = signer["signer"].signrawtransaction(signedtx, details)["hex"]
 
@@ -267,7 +268,7 @@ if isbitcoin:
 else:
     # Don't use the hex value from their examples! "b2e15d0d7a0c94e4e2ce0fe6e8691b9e451377f6e46e8045a86f7c4b5d4f0f23"
     # If you have a valid block signing program, the asset id for bitcoin magically changes to something else, which is different for each run!
-    money_asset_id = "bitcoin" 
+    money_asset_id = "bitcoin"
 
 MAX_CONFIRMATIONS = 9999999 # Need to specify the max old thing we care about. This is the default used by the daemons
 MIN_CONFIRMATIONS = 0 # For our purposes, we'll take anything entered at all.
@@ -282,7 +283,7 @@ def input_simple(input):
     txid = input["txid"]
     vout = input["vout"]
     return {"txid":txid, "vout":vout}
-    
+
 def getunspent(addresses, asset_id = money_asset_id, list_unsafe = True):
     listing = listunspent(addresses, asset_id, e1, list_unsafe)
     return list(map(input_simple, listing))
@@ -302,7 +303,7 @@ bob_amount = 4
 marketplace_amount = 2
 fee_amount = 1
 alice_change_amount = seed_amount - bob_amount - marketplace_amount - fee_amount
-    
+
 ## Seeding:
 marketplace = unblinded_address()
 banker = unblinded_address()
@@ -334,7 +335,7 @@ else:
 #     dp("unspent", listunspent([]))
 # dp("send", e1.sendtoaddress(marketplace, 1, "comment ignored by Elements", "", False, cert_id_on_chain, True))
 
-    
+
 # Start alice and bob with seed_amount units
 transact([], {alice: seed_amount})
 transact([], {bob: seed_amount})
@@ -355,7 +356,7 @@ signers = [{"signer": alice_wallet}]
 if not isbitcoin:
     # If our own balance check for the user says we should make the sale, then make the cert and assign it to the marketplace,
     # unless we already have one from a previous failed sale.
-    
+
     # Issuing and assigning the asset will have a transaction cost, paid from the wallet.
     # Alas, right now, alice, bob, and marketplace are also in the wallet, and might get raided for this purpose.
     # unless we lock them. This shouldn't be a problem if they are in separate wallets.
@@ -371,7 +372,7 @@ if not isbitcoin:
     e1.sendtoaddress(marketplace, 1, "comment ignored by Elements", "", False, cert_id_on_chain, True)
 
     e1.lockunspent(True, locked)
-    
+
     # Now add the cert to the big swap.
     # Note that the raw transaction will need two signers: One for alice's money (signed by alice_wallet), and one for the cert (signed by the marketplace)
     cert_inputs = getunspent([], cert_id_on_chain)
