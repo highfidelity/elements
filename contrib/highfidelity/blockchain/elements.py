@@ -37,14 +37,15 @@ class Elements(Blockchain):
     class Node:
         class CannotConnectError(Error): pass  # noqa: E701
         class CannotExecuteRpcError(Error): pass  # noqa: E301, E701
+        class FailedToGenerateBlockError(Error): pass  # noqa: E301, E701
         class MissingConfigKeysError(Error): pass  # noqa: E301, E701
 
         MAX_RETRIES = 5
 
         _logger = logging.getLogger('Node')
 
-        def __init__(self, node_name, total_attempts=5, interval_seconds=2.0):
-            self._node_name = node_name
+        def __init__(self, name, total_attempts=5, interval_seconds=2.0):
+            self.name = name
             self._is_up = False
             self._proxy = None
 
@@ -52,13 +53,20 @@ class Elements(Blockchain):
             self._ensure_is_up()
             return getattr(self._proxy, command)(*args)
 
-        def _auth_service_proxy(self, node_name):
-            config = self._load_config(node_name)
+        def generate_block(self):
+            blockhex = self.rpc('getnewblockhex')
+            sign1 = self.rpc('signblock', blockhex)
+            blockresult = self.rpc('combineblocksigs', blockhex, [sign1])
+            signedblock = blockresult["hex"]
+            return self.rpc('submitblock', signedblock)
+
+        def _auth_service_proxy(self):
+            config = self._load_config()
             proxy_url = f'http://{config["rpcuser"]}:{config["rpcpassword"]}@127.0.0.1:{config["rpcport"]}'  # noqa: E501
             return AuthServiceProxy(proxy_url)
 
-        def _load_config(self, node_name):
-            filename = config_filepath(node_name)
+        def _load_config(self):
+            filename = config_filepath(self.name)
             with open(filename, 'r') as file:
                 config = self._config_from_file(filename, file)
             self._check_for_required_config_keys(set(config.keys()), filename)
@@ -80,7 +88,7 @@ class Elements(Blockchain):
 
         def _ensure_is_up(self):
             if None is self._proxy:
-                self._proxy = self._auth_service_proxy(self._node_name)
+                self._proxy = self._auth_service_proxy()
             if not self._is_up:
                 for _ in range(5):
                     try:
@@ -88,12 +96,12 @@ class Elements(Blockchain):
                     except ConnectionRefusedError:
                         logging.debug('waiting for daemon to start...')
                         time.sleep(1)
-                        self._proxy = self._auth_service_proxy(self._node_name)  # noqa: E501
+                        self._proxy = self._auth_service_proxy()
                     except JSONRPCException as e:
                         msg = f'daemon started but is not ready: {e.error}'
                         logging.debug(msg)
                         time.sleep(1)
-                        self._proxy = self._auth_service_proxy(self._node_name)  # noqa: E501
+                        self._proxy = self._auth_service_proxy()
                     else:
                         self._is_up = True
                         return
@@ -101,21 +109,21 @@ class Elements(Blockchain):
 
     @classmethod
     @contextlib.contextmanager
-    def node(cls, node_name, _warm_up_master=False, _ensure_signing_key=True):
+    def node(cls, name, _warm_up_master=False, _ensure_signing_key=True):
         if _ensure_signing_key:
             cls._ensure_signing_key()
         try:
             with tempfile.TemporaryDirectory() as datadir:
-                process = cls._spawn_node_process(node_name, datadir)
-                node = cls.Node(node_name)
-                if 'master' == node_name:
+                process = cls._spawn_node_process(name, datadir)
+                node = cls.Node(name)
+                if 'master' == name:
                     if _warm_up_master:
                         cls._logger.info('pause after starting master...')
                         time.sleep(5)
                     node.rpc('importprivkey', cls.signing_privkey)
                     cls._generate_initial_signed_blocks(node)
                 yield node
-                cls._stop_node_process(process, node, node_name)
+                cls._stop_node_process(process, node)
         except OSError as e:
             # The daemon may continue writing to the datadir and so
             # TemporaryDirectory's attempt to clean up the directory
@@ -124,21 +132,15 @@ class Elements(Blockchain):
             # 66 corresponds to "Directory not empty".
             if 66 != e.errno:
                 raise
-        cls._logger.info(f'pause after terminating {node_name}...')
+        cls._logger.info(f'pause after terminating {node.name}...')
         time.sleep(2)
 
     @classmethod
-    def _generate_initial_signed_blocks(cls, proxy):
+    def _generate_initial_signed_blocks(cls, node):
         for _ in range(101):
-            cls._generate_block(proxy)
-
-    @classmethod
-    def _generate_block(cls, proxy):
-        blockhex = proxy.rpc('getnewblockhex')
-        sign1 = proxy.rpc('signblock', blockhex)
-        blockresult = proxy.rpc('combineblocksigs', blockhex, [sign1])
-        signedblock = blockresult["hex"]
-        return proxy.rpc('submitblock', signedblock)
+            result = node.generate_block()
+            if result:
+                raise cls.FailedToGenerateBlockError(result)
 
     @classmethod
     def _ensure_signing_key(cls):
@@ -172,8 +174,8 @@ class Elements(Blockchain):
         shutil.copyfile(src, dest)
 
     @classmethod
-    def _stop_node_process(cls, process, proxy, node_name):
-        proxy.rpc('stop')
-        cls._logger.info(f'waiting for {node_name} to halt...')
+    def _stop_node_process(cls, process, node):
+        node.rpc('stop')
+        cls._logger.info(f'waiting for {node.name} to halt...')
         process.wait()
-        cls._logger.info(f'{node_name} halted')
+        cls._logger.info(f'{node.name} halted')

@@ -126,7 +126,7 @@ def test_async_delayed_generate_blocks():
     def create_block():
         node = Elements.Node('master')
         try:
-            result = Elements._generate_block(node)
+            result = node.generate_block()
         except JSONRPCException as e:
             if 'already have block' != e.error['message']:
                 raise
