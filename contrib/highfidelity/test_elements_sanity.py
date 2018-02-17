@@ -333,9 +333,9 @@ def test_generate_transactions():
                     bob.seed(SEED_AMOUNT)
                     test_function(alice, bob)
 
-    def _test_function_roundtrips(alice, bob):
-        ROUNDTRIPS = 10
+    def _test_roundtrips(alice, bob):
         AMOUNT = 10
+        ROUNDTRIPS = 10
         for _ in range(ROUNDTRIPS):
             alice_balance = alice.balance
             bob_balance = bob.balance
@@ -348,5 +348,23 @@ def test_generate_transactions():
         assert SEED_AMOUNT - DEFAULT_FEE * ROUNDTRIPS == alice.balance
         assert SEED_AMOUNT - DEFAULT_FEE * ROUNDTRIPS == bob.balance
 
-    run(_test_function_roundtrips)
+    def _test_roundtrips_and_generate_blocks(alice, bob):
+        AMOUNT = 10
+        ROUNDTRIPS = 100
+        ROUNDTRIPS_PER_BLOCK = 10
+        for n in range(ROUNDTRIPS):
+            alice_balance = alice.balance
+            bob_balance = bob.balance
+            Wallet.transact(alice, bob, AMOUNT)
+            assert alice_balance - AMOUNT - DEFAULT_FEE == alice.balance
+            assert bob_balance + AMOUNT == bob.balance
+            Wallet.transact(bob, alice, AMOUNT)
+            assert alice_balance - DEFAULT_FEE == alice.balance
+            assert bob_balance - DEFAULT_FEE == bob.balance
+            if 0 == (n + 1) % ROUNDTRIPS_PER_BLOCK:
+                assert None is Wallet.master_node.generate_block()
+        assert SEED_AMOUNT - DEFAULT_FEE * ROUNDTRIPS == alice.balance
+        assert SEED_AMOUNT - DEFAULT_FEE * ROUNDTRIPS == bob.balance
 
+    run(_test_roundtrips)
+    run(_test_roundtrips_and_generate_blocks)
