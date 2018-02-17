@@ -1,5 +1,5 @@
 # Unfamiliar with the ELements RPC interface?
-# See: https://github.com/ElementsProject/elementsbp-api-reference/blob/master/api.md#createrawtransaction  # noqa: E501
+# See: https://github.com/ElementsProject/elementsbp-api-reference/blob/master/api.md  # noqa: E501
 
 from gevent import monkey; monkey.patch_all()  # noqa: E702
 
@@ -40,6 +40,10 @@ def generate_signing_key(node):
     address = node.rpc('getnewaddress')
     result = node.rpc('validateaddress', address)
     assert result['isvalid']
+
+
+# NOTE: We had concerns about unpredictable startup behavior of
+# elementds. Hence the variety of "immediate" and "delayed" tests.
 
 
 def test_immediate_generate_signing_keys():
@@ -113,7 +117,7 @@ def test_delayed_generate_blocks():
 
 
 @pytest.mark.xfail
-def test_async_delayed_generate_blocks():
+def test_async_generate_blocks():
     # Create a master daemon. Fire up an increasing number of asynchronous
     # clients that attempt to create blocks at the master daemon. When
     # a client fails with an unexpected result the test is failed.
@@ -180,7 +184,8 @@ def test_generate_transactions():
         @property
         def balance(self):
             """Validate and return the wallet's balance."""
-            result = sum(x['amount'] for x in self._unspent(self.address))
+            result = sum(
+                x['amount'] for x in self._all_utxo(self.address))
             assert self._expected_balance == result
             return result
 
@@ -191,11 +196,12 @@ def test_generate_transactions():
             receiver,
             amount,
             output_asset_ids={},
-            details=[]
+            utxo_details=[]
         ):
+            # utxo_details are unspent transaction ot
             if sender:
                 result = cls._transact(
-                    sender, receiver, amount, output_asset_ids, details)
+                    sender, receiver, amount, output_asset_ids, utxo_details)
                 sender._expected_balance -= amount + DEFAULT_FEE
                 receiver._expected_balance += amount
             else:
@@ -206,9 +212,21 @@ def test_generate_transactions():
         def seed(self, amount):
             self.transact(None, self, amount)
 
-        def sign(self, raw_transaction, details=None):
+        def sign(self, raw_transaction, utxo_details=None):
+            """Sign a raw transaction
+
+            Arguments:
+                raw_transaction (hex): the transaction to sign as a
+                    serialized transaction
+                utxo_details (list; optional): The previous outputs being
+                    spent by this transaction
+
+            For more information on utxo_details, see:
+                https://bitcoin.org/en/developer-reference#signrawtransaction
+
+            """
             return self._node.rpc(
-                'signrawtransaction', raw_transaction, details)['hex']
+                'signrawtransaction', raw_transaction, utxo_details)['hex']
 
         # def certify(self, item_id):
         #     assert 'item_id' not in self.certificates
@@ -221,7 +239,13 @@ def test_generate_transactions():
             return t['vout'][input_['vout']]['scriptPubKey']['hex']
 
         @classmethod
-        def _unspent_details(cls, inputs):
+        def _utxo_to_utxo_details(cls, inputs):
+            """Convert utxo to utxo details
+
+            What are unspent transaction output (utxo) details?
+            See: https://bitcoin.org/en/developer-reference#signrawtransaction
+
+            """
             result = list()
             for input_ in inputs:
                 result.append({
@@ -233,17 +257,29 @@ def test_generate_transactions():
 
         @classmethod
         def _transact(
-            cls, sender, receiver, amount, output_asset_ids, details
+            cls,
+            sender,
+            receiver,
+            amount,
+            output_asset_ids,
+            utxo_details=[]
         ):
-            inputs = cls._unspent(sender.address)
+            # utxo_details specifies the outputs that are spent by this
+            # transaction. When utxo_details are not supplied, any and
+            # all outputs of the sender may be spent.
+            inputs = cls._all_utxo(sender.address)
             outputs = {
                 receiver.address: amount,
                 'fee': DEFAULT_FEE,
                 sender.address: sender.balance - DEFAULT_FEE - amount
             }
             txn_raw = cls._raw_transaction(inputs, outputs, output_asset_ids)
-            details = details or cls._unspent_details(inputs)
-            txn_signed = sender.sign(txn_raw, details)
+            utxo_details = utxo_details or cls._utxo_to_utxo_details(inputs)
+            # XXX: what sense is there in having a transaction with
+            # inputs that differ from the utxo_details? This would be a
+            # transaction with inputs that are not spent by the
+            # transaction.
+            txn_signed = sender.sign(txn_raw, utxo_details)
             return cls.master_node.rpc('sendrawtransaction', txn_signed, True, True)  # noqa: E501
 
         @classmethod
@@ -268,7 +304,8 @@ def test_generate_transactions():
                 output_asset_ids)
 
         @classmethod
-        def _unspent(cls, address):
+        def _all_utxo(cls, address):
+            """List all unspent transaction outputs for the address"""
             return cls.master_node.rpc(
                 'listunspent',
                 MIN_CONFIRMATIONS,
