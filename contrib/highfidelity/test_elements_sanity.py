@@ -62,7 +62,7 @@ def test_immediate_generate_signing_keys():
 
 
 def test_immediate_generate_blocks():
-    N_RUNS = 10
+    N_RUNS = 3
     exceptions = list()
     passed = list()
     for n in range(N_RUNS):
@@ -85,14 +85,14 @@ def test_delayed_generate_signing_keys():
     # errors.
     node_name = 'test_elements_wallet'
     with Elements.node(node_name, _ensure_signing_key=False) as node:
-        logger.info(f'giving {node_name} 10 seconds to warm up...')
-        time.sleep(10)
+        logger.info(f'giving {node_name} 5 seconds to warm up...')
+        time.sleep(5)
         for _ in range(100):
             generate_signing_key(node)
 
 
 def test_delayed_generate_blocks():
-    N_RUNS = 10
+    N_RUNS = 3
     exceptions = list()
     passed = list()
     for n in range(N_RUNS):
