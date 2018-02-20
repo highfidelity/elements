@@ -10,6 +10,7 @@ import gevent
 import pytest
 
 from .kill_elementsd_before_each_function import *  # noqa: F403
+from .kill_elementsd_before_each_function import kill_all_elementsd
 from .test_framework.authproxy import JSONRPCException
 from .blockchain import Elements
 from .wallet import Wallet, DEFAULT_FEE, SEED_AMOUNT
@@ -54,7 +55,7 @@ def test_immediate_generate_blocks():
     passed = list()
     for n in range(N_RUNS):
         logging.info(f'=== {n+1} of {N_RUNS}: test_immediate_generate_blocks')
-        kill_all_elementd()
+        kill_all_elementsd()
         try:
             with Elements.node('master'):
                 logging.info(f'=== test {n+1} of {N_RUNS} passed')
@@ -84,7 +85,7 @@ def test_delayed_generate_blocks():
     passed = list()
     for n in range(N_RUNS):
         logging.info(f'=== {n+1} of {N_RUNS}: test_immediate_generate_blocks')
-        kill_all_elementd()
+        kill_all_elementsd()
         try:
             # _warm_up_master=True means: Start the master daemon then
             # before issuing any commands to it sleep for awhile.

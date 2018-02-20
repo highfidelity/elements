@@ -10,7 +10,7 @@ import subprocess
 import time
 
 
-def kill_all_elementd():
+def kill_all_elementsd():
     result = subprocess.run(['pkill', 'elementsd'])
     if 0 == result.returncode:
         logging.info('killed preexisting elementsd')
@@ -25,4 +25,4 @@ def kill_all_elementd():
 
 
 def setup_function(function):
-    kill_all_elementd()
+    kill_all_elementsd()
