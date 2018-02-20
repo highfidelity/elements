@@ -1,7 +1,7 @@
 # Configure test parameters
 # See: https://docs.pytest.org/en/latest/example/parametrize.html
 
-from .blockchain import Elements, EOS
+from .test_framework.blockchain import Elements, EOS
 
 
 ALL_BLOCKCHAINS = [Elements, EOS]

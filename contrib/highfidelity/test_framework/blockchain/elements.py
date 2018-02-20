@@ -6,15 +6,9 @@ import subprocess
 import tempfile
 import time
 
-from ..test_framework.authproxy import AuthServiceProxy, JSONRPCException
+from ..authproxy import AuthServiceProxy, JSONRPCException
 from .blockchain import Blockchain
 from .error import Error
-
-# -connect=<ip> -- connect only to the specified node
-# -bind=<addr> -- bind to given address and always listen
-# -dns=0 -- disable dns lookups for connect
-# -blockmaxsize=0 -- the maximum block size in bytes
-# -disablewallet -- ??? do not load the wallet and disable wallet RPC calls
 
 
 REQUIRED_CONFIG_KEYS = {'rpcuser', 'rpcpassword', 'rpcport'}
@@ -160,7 +154,7 @@ class Elements(Blockchain):
         cls._configure_node_process(node_name, datadir)
         elementsd_path = os.path.join(
             os.path.dirname(os.path.realpath(__file__)),
-            '..', '..', '..', 'src', 'elementsd')
+            '..', '..', '..', '..', 'src', 'elementsd')
         cls._logger.info(f'starting {node_name}...')
         args = [f'-datadir={datadir}']
         if node_name in ('master', 'slave'):

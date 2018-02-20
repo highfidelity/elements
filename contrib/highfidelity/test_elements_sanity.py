@@ -9,12 +9,11 @@ import time
 import gevent
 import pytest
 
-from .alice_and_bob import alice_and_bob
-from .kill_elementsd_before_each_function import *  # noqa: F401, F403
-from .kill_elementsd_before_each_function import kill_all_elementsd
+from .test_framework.alice_and_bob import alice_and_bob
 from .test_framework.authproxy import JSONRPCException
-from .blockchain import Elements
-from .wallet import Wallet, DEFAULT_FEE, SEED_AMOUNT
+from .test_framework.blockchain import Elements
+from .test_framework.kill_elementsd_before_each_function import *  # noqa: E501, F401, F403
+from .test_framework.wallet import Wallet, DEFAULT_FEE, SEED_AMOUNT
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -56,7 +55,7 @@ def test_immediate_generate_blocks():
     passed = list()
     for n in range(N_RUNS):
         logging.info(f'=== {n+1} of {N_RUNS}: test_immediate_generate_blocks')
-        kill_all_elementsd()
+        kill_all_elementsd()  # noqa: F405 -- this is included from a * import
         try:
             with Elements.node('master'):
                 logging.info(f'=== test {n+1} of {N_RUNS} passed')
@@ -86,7 +85,7 @@ def test_delayed_generate_blocks():
     passed = list()
     for n in range(N_RUNS):
         logging.info(f'=== {n+1} of {N_RUNS}: test_immediate_generate_blocks')
-        kill_all_elementsd()
+        kill_all_elementsd()  # noqa: F405 -- this is included from a * import
         try:
             # _warm_up_master=True means: Start the master daemon then
             # before issuing any commands to it sleep for awhile.
