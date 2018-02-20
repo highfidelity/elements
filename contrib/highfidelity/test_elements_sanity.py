@@ -3,6 +3,7 @@
 
 from gevent import monkey; monkey.patch_all()  # noqa: E702
 
+import contextlib
 import logging
 import subprocess
 import time
@@ -322,7 +323,8 @@ class Wallet:
         return address_validated['unconfidential']
 
 
-def with_alice_and_bob(test_function):
+@contextlib.contextmanager
+def alice_and_bob():
     with Elements.node('master') as master_node:
         Wallet.master_node = master_node
         with Elements.node('alice') as node_alice:
@@ -331,11 +333,11 @@ def with_alice_and_bob(test_function):
             with Elements.node('bob') as node_bob:
                 bob = Wallet(node_bob)
                 bob.seed(SEED_AMOUNT)
-                test_function(alice, bob)
+                yield (alice, bob)
 
 
 def test_roundtrips():
-    def _test(alice, bob):
+    with alice_and_bob() as (alice, bob):
         AMOUNT = 10
         ROUNDTRIPS = 10
         for _ in range(ROUNDTRIPS):
@@ -349,11 +351,10 @@ def test_roundtrips():
             assert bob_balance - DEFAULT_FEE == bob.balance
         assert SEED_AMOUNT - DEFAULT_FEE * ROUNDTRIPS == alice.balance
         assert SEED_AMOUNT - DEFAULT_FEE * ROUNDTRIPS == bob.balance
-    with_alice_and_bob(_test)
 
 
 def test_roundtrips_and_generate_blocks():
-    def _test(alice, bob):
+    with alice_and_bob() as (alice, bob):
         AMOUNT = 10
         ROUNDTRIPS = 100
         ROUNDTRIPS_PER_BLOCK = 10
@@ -370,4 +371,3 @@ def test_roundtrips_and_generate_blocks():
                 assert None is Wallet.master_node.generate_block()
         assert SEED_AMOUNT - DEFAULT_FEE * ROUNDTRIPS == alice.balance
         assert SEED_AMOUNT - DEFAULT_FEE * ROUNDTRIPS == bob.balance
-    with_alice_and_bob(_test)
