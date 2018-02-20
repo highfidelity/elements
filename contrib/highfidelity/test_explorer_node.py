@@ -3,42 +3,57 @@ import time
 
 import pytest
 
+from .alice_and_bob import alice_and_bob
 from .kill_elementsd_before_each_function import *  # noqa: F401, F403
-from .blockchain import Elements, EOS
 
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('test_explorer_node')
 
 
+def _wait_for(function):
+    for _ in range(5):
+        if not function():
+            time.sleep(1)
+        else:
+            return
+    raise TimeoutError
 
-@pytest.mark.skip
-def test_nodes_see_all_transactions(blockchain):
+
+def test_slave_sees_all_blocks_and_transactions(blockchain):
     # All nodes on a blockchain see all transactions. Think of these
     # transactions as "proposed" lines in a giant public ledger book
-    with blockchain.node_pair() as (master, slave):
-        master.create_transactions(10)
-        time.sleep(1)
-        assert master.transactions == slave.transactions
+    with alice_and_bob(blockchain) as (alice, bob):
+        with blockchain.node('slave') as slave:
+            master = alice.master_node  # or bob.master_node; same thing
 
+            # Wait for master-slave connection.
+            _wait_for(lambda: 1 == master.rpc('getinfo')['connections'])
+            last_block = master.rpc('listsinceblock')['lastblock']
 
-@pytest.mark.skip
-def test_nodes_see_all_created_blocks(blockchain):
-    # All nodes on a blockchain see all "created blocks". Think of these
-    # as written pages in the giant public ledger book, once written
-    # down they can never be changed.
-    with blockchain.nodes() as (master, slave):
-        master.create_blocks(10)
-        time.sleep(1)
-        assert master.blocks == slave.blocks
+            # Wait for slave to sync initial blockchain from master.
+            _wait_for(
+                lambda: last_block == slave.rpc('listsinceblock')['lastblock'])  # noqa: E501
 
+            # Confirm that slave is aware of unconfirmed transactions.
+            rawmempool = master.rpc('getrawmempool')
+            _wait_for(lambda: rawmempool == slave.rpc('getrawmempool'))
 
-@pytest.mark.skip
-def test_nodes_have_a_copy_of_the_current_blockchain(blockchain):
-    with blockchain.nodes() as (master, slave):
-        master.create_blockchain(total_blocks=10)
-        time.sleep(1)
-        assert master.blockchain == slave.blockchain
+            # Generate and verify existence of a new block.
+            master.generate_block()
+            last_block_new = master.rpc('listsinceblock')['lastblock']
+            assert last_block != last_block_new
+
+            # Verify that all transactions have been confirmed.
+            assert 0 == len(master.rpc('getrawmempool'))
+
+            # Wait for new block to propagate to slave.
+            expected = last_block_new
+            _wait_for(
+                lambda: expected == slave.rpc('listsinceblock')['lastblock'])
+
+            # Ensure that slave has no uncommited transactions.
+            assert 0 == len(slave.rpc('getrawmempool'))
 
 
 @pytest.mark.skip
