@@ -5,36 +5,18 @@ from gevent import monkey; monkey.patch_all()  # noqa: E702
 
 import contextlib
 import logging
-import subprocess
 import time
 
 import gevent
 import pytest
 
+from .kill_elementsd_before_each_function import *  # noqa: F403
 from .test_framework.authproxy import JSONRPCException
 from .blockchain import Elements
 
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('test_elements_wallet')
-
-
-def kill_all_elementd():
-    result = subprocess.run(['pkill', 'elementsd'])
-    if 0 == result.returncode:
-        logging.info('killed preexisting elementsd')
-        logging.info(f'pause after killing elementsd...')
-        time.sleep(2)
-    elif 1 == result.returncode:
-        # No processes were matched. OK.
-        pass
-    else:
-        msg = f'pkill failed with {result.returncode}; see `man pkill`'
-        raise AssertionError(msg)
-
-
-def setup_function(function):
-    kill_all_elementd()
 
 
 def generate_signing_key(node):

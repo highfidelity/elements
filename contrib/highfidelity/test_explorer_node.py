@@ -1,35 +1,15 @@
 import logging
-import os
 import time
 
 import pytest
 
+from .kill_elementsd_before_each_function import *  # noqa: F401, F403
 from .blockchain import Elements, EOS
 
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('test_explorer_node')
 
-
-def setup_module(module):
-    logger.critical('THIS IS A WORK IN PROGRESS')
-
-
-def setup_function(function):
-    os.system('pkill elementsd')
-    time.sleep(1)
-
-
-def teardown_module(module):
-    os.system('pkill elementsd')
-    time.sleep(1)
-
-
-def test_noop():
-    # Causes setup_module() and setup_function() to run.
-    #
-    # TODO: Remove this once another test is implemented.
-    pass
 
 
 @pytest.mark.skip
