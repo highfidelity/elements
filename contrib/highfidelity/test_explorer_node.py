@@ -3,8 +3,8 @@ import time
 
 import pytest
 
-from .alice_and_bob import alice_and_bob
-from .kill_elementsd_before_each_function import *  # noqa: F401, F403
+from .test_framework.alice_and_bob import alice_and_bob
+from .test_framework.kill_elementsd_before_each_function import *  # noqa: E501, F401, F403
 
 
 logging.basicConfig(level=logging.DEBUG)
