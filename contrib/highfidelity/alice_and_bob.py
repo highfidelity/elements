@@ -1,6 +1,8 @@
 import contextlib
 
 from .blockchain import Elements
+from .wallet import Wallet, SEED_AMOUNT
+
 
 @contextlib.contextmanager
 def alice_and_bob():

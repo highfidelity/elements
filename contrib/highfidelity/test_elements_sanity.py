@@ -9,7 +9,8 @@ import time
 import gevent
 import pytest
 
-from .kill_elementsd_before_each_function import *  # noqa: F403
+from .alice_and_bob import alice_and_bob
+from .kill_elementsd_before_each_function import *  # noqa: F401, F403
 from .kill_elementsd_before_each_function import kill_all_elementsd
 from .test_framework.authproxy import JSONRPCException
 from .blockchain import Elements
