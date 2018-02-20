@@ -162,8 +162,9 @@ class Elements(Blockchain):
             os.path.dirname(os.path.realpath(__file__)),
             '..', '..', '..', 'src', 'elementsd')
         cls._logger.info(f'starting {node_name}...')
-        args = [f'-datadir={datadir}', '-regtest']
-        if 'master' == node_name:
+        args = [f'-datadir={datadir}']
+        if node_name in ('master', 'slave'):
+            # Specify a 1-of-1 multisig script as a block requirement.
             args.append(f'-signblockscript=5121{cls.signing_pubkey}51ae')
         return subprocess.Popen([elementsd_path, *args])
 
