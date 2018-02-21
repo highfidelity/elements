@@ -1,3 +1,5 @@
+from .error import Error
+
 # MONEY_ASSET_ID = 'bitcoin'
 DEFAULT_FEE = 1
 MAX_CONFIRMATIONS = 9999999  # This is the default used by the daemons.
@@ -6,6 +8,8 @@ SEED_AMOUNT = 1000
 
 
 class Wallet:
+    class InvalidWalletBalance(Error): pass  # noqa: E701
+
     master_node = None
 
     def __init__(self, node):
@@ -24,7 +28,8 @@ class Wallet:
         """Validate and return the wallet's balance."""
         result = sum(
             x['amount'] for x in self._all_utxo(self.address))
-        assert self._expected_balance == result
+        if self._expected_balance != result:
+            self.InvalidWalletBalance(self.address)
         return result
 
     @classmethod

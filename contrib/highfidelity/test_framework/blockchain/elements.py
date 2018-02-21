@@ -7,8 +7,8 @@ import tempfile
 import time
 
 from ..authproxy import AuthServiceProxy, JSONRPCException
+from ..error import Error
 from .blockchain import Blockchain
-from .error import Error
 
 
 REQUIRED_CONFIG_KEYS = {'rpcuser', 'rpcpassword', 'rpcport'}
@@ -22,6 +22,7 @@ def config_filepath(node_name):
 
 class Elements(Blockchain):
     class NodeFailedToStartError(Error): pass  # noqa: E701
+    class AddressNotValidError(Error): pass  # noqa: E301, E701
 
     signing_pubkey = None
     signing_privkey = None
@@ -38,8 +39,15 @@ class Elements(Blockchain):
 
         _logger = logging.getLogger('Node')
 
-        def __init__(self, name, total_attempts=5, interval_seconds=2.0):
+        def __init__(
+            self,
+            name,
+            datadir,
+            total_attempts=5,
+            interval_seconds=2.0
+        ):
             self.name = name
+            self.datadir = datadir
             self._is_up = False
             self._proxy = None
 
@@ -108,16 +116,24 @@ class Elements(Blockchain):
             cls._ensure_signing_key()
         try:
             with tempfile.TemporaryDirectory() as datadir:
-                process = cls._spawn_node_process(name, datadir)
-                node = cls.Node(name)
-                if 'master' == name:
-                    if _warm_up_master:
-                        cls._logger.info('pause after starting master...')
-                        time.sleep(5)
-                    node.rpc('importprivkey', cls.signing_privkey)
-                    cls._generate_initial_signed_blocks(node)
-                yield node
-                cls._stop_node_process(process, node)
+                try:
+                    process = cls._spawn_node_process(name, datadir)
+                    node = cls.Node(name, datadir)
+                    if 'master' == name:
+                        if _warm_up_master:
+                            cls._logger.info('pause after starting master...')
+                            time.sleep(5)
+                        node.rpc('importprivkey', cls.signing_privkey)
+                        cls._generate_initial_signed_blocks(node)
+                    yield node
+                    cls._stop_node_process(process, node)
+                except Exception as e:
+                    # ZOIKS!
+                    #
+                    # Catch all exceptions here so that the tempfile
+                    # remains open for examination.
+                    import pdb; pdb.set_trace()  # noqa
+                    pass
         except OSError as e:
             # The daemon may continue writing to the datadir and so
             # TemporaryDirectory's attempt to clean up the directory
@@ -145,7 +161,8 @@ class Elements(Blockchain):
             ) as node:
                 address = node.rpc('getnewaddress')
                 result = node.rpc('validateaddress', address)
-                assert result['isvalid']
+                if not result['isvalid']:
+                    cls.AddressNotValidError(address)
                 cls.signing_pubkey = result['pubkey']
                 cls.signing_privkey = node.rpc('dumpprivkey', address)
 
