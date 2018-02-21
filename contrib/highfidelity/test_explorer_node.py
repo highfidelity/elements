@@ -94,24 +94,14 @@ def test_nodes_obey_the_same_rules(blockchain):
             last_block = master.rpc('listsinceblock')['lastblock']
             _wait_for(lambda: last_block == slave.rpc('listsinceblock')['lastblock'])  # noqa: E501
 
-            # Alice submits a transaction to the slave, which propagates
-            # as an unconfirmed transaction to the master.
-            assert 0 == len(master.rpc('getrawmempool'))
+            # Alice submits a transaction to the slaver.
             assert 0 == len(slave.rpc('getrawmempool'))
             alice.transact(alice, bob, 10)
-            rawmempool = slave.rpc('getrawmempool')
-            assert 0 < len(rawmempool)
-            _wait_for(lambda: rawmempool == master.rpc('getrawmempool'))
+            assert 0 < len(slave.rpc('getrawmempool'))
 
             # The slave, which does not possess the block signing key,
             # cannot generate a block.
             assert 'block-proof-invalid' == slave.generate_block()
-
-            # The transaction, which is properly signed by alice, can be
-            # confirmed by the master.
-            assert None is master.generate_block()
-            assert 0 == len(master.rpc('getrawmempool'))
-            _wait_for(lambda: 0 == len(slave.rpc('getrawmempool')))
 
 
 def test_nodes_are_validators(blockchain):
@@ -134,7 +124,7 @@ def test_multiple_signers(blockchain):
     raise NotImplementedError
 
 
-@pytest.mark.skip
+@pytest.mark.xfail
 def test_multiple_block_creators(blockchain):
     # TL;DR -- There is nothing to test in this case.
     #
@@ -153,8 +143,35 @@ def test_multiple_block_creators(blockchain):
     raise NotImplementedError
 
 
-@pytest.mark.skip
 def test_second_node_cannot_add_transactions(blockchain):
-    with blockchain.nodes() as (master, slave):
-        with pytest.raises(slave.CannotAddTransactionError):
-            slave.create_transactions(1)
+    with alice_and_bob(blockchain) as (alice, bob):
+        with blockchain.node('slave') as slave:
+            master = Wallet.master_node
+            Wallet.master_node = slave  # submit transactions to slave
+
+            # Watch for transactions affecting alice and bob. This
+            # enables the listunspent rpc on the slave for alice and
+            # bob, which is used by Wallet to construct transactions.
+            slave.rpc('importaddress', alice.address)
+            slave.rpc('importaddress', bob.address)
+
+            # Wait for master-slave connection.
+            _wait_for(lambda: 1 == master.rpc('getinfo')['connections'])
+
+            # Wait for slave to sync initial blockchain from master.
+            last_block = master.rpc('listsinceblock')['lastblock']
+            _wait_for(lambda: last_block == slave.rpc('listsinceblock')['lastblock'])  # noqa: E501
+
+            # Alice submits a transaction to the slave, which fails to
+            # propagate as an unconfirmed transaction to the master.
+            assert 0 == len(master.rpc('getrawmempool'))
+            assert 0 == len(slave.rpc('getrawmempool'))
+            alice.transact(alice, bob, 10)
+            rawmempool = slave.rpc('getrawmempool')
+            assert 0 < len(rawmempool)
+            with pytest.raises(TimeoutError):
+                _wait_for(lambda: rawmempool == master.rpc('getrawmempool'))
+
+            # The slave, which does not possess the block signing key,
+            # cannot generate a block.
+            assert 'block-proof-invalid' == slave.generate_block()
