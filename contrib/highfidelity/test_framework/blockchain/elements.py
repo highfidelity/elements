@@ -111,7 +111,13 @@ class Elements(Blockchain):
 
     @classmethod
     @contextlib.contextmanager
-    def node(cls, name, _warm_up_master=False, _ensure_signing_key=True):
+    def node(
+        cls,
+        name,
+        _warm_up_master=False,
+        _ensure_signing_key=True,
+        _pdb_on_exception=True
+    ):
         if _ensure_signing_key:
             cls._ensure_signing_key()
         try:
@@ -128,12 +134,13 @@ class Elements(Blockchain):
                     yield node
                     cls._stop_node_process(process, node)
                 except Exception as e:
-                    # ZOIKS!
-                    #
-                    # Catch all exceptions here so that the tempfile
-                    # remains open for examination.
-                    import pdb; pdb.set_trace()  # noqa
-                    pass
+                    if _pdb_on_exception:
+                        # ZOIKS!
+                        #
+                        # Catch all exceptions here so that the tempfile
+                        # remains open for examination.
+                        import pdb; pdb.set_trace()  # noqa
+                    raise
         except OSError as e:
             # The daemon may continue writing to the datadir and so
             # TemporaryDirectory's attempt to clean up the directory

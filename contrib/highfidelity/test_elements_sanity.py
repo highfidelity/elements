@@ -124,7 +124,7 @@ def test_async_generate_blocks():
                 raise UnexpectedResult(result)
 
     # Create a master daemon with an initial blockchain...
-    with Elements.node('master'):
+    with Elements.node('master', _pdb_on_exception=False):
         # ... and with ever increasing concurrency ...
         for concurrency in range(100):
             # ... fire up asynchronous clients that attempt to generate
