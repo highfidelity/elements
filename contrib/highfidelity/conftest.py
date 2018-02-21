@@ -4,12 +4,13 @@
 from .test_framework.blockchain import Elements, EOS
 
 
-ALL_BLOCKCHAINS = [Elements, EOS]
+# ALL_BLOCKCHAINS = [Elements, EOS]
+ALL_BLOCKCHAINS = [Elements]
 
 
 def pytest_addoption(parser):
     parser.addoption('--elements', action='store_true', help='limit tests to Elements')  # noqa: E501
-    parser.addoption('--eos', action='store_true', help='limit tests to EOS')
+    # parser.addoption('--eos', action='store_true', help='limit tests to EOS')
 
 
 def pytest_generate_tests(metafunc):
@@ -18,8 +19,8 @@ def pytest_generate_tests(metafunc):
         blockchains = list()
         if config.getoption('elements'):
             blockchains.append(Elements())
-        if config.getoption('eos'):
-            blockchains.append(EOS())
+        # if config.getoption('eos'):
+        #     blockchains.append(EOS())
         if not blockchains:
             blockchains = [blockchain() for blockchain in ALL_BLOCKCHAINS]
         metafunc.parametrize('blockchain', blockchains)
