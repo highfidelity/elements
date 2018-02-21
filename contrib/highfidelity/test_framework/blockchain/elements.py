@@ -92,7 +92,7 @@ class Elements(Blockchain):
             if None is self._proxy:
                 self._proxy = self._auth_service_proxy()
             if not self._is_up:
-                for _ in range(5):
+                for _ in range(10):
                     try:
                         self._proxy.ping()
                     except ConnectionRefusedError:
