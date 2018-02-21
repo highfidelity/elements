@@ -6,6 +6,7 @@ import pytest
 from .test_framework.alice_and_bob import alice_and_bob
 from .test_framework.kill_elementsd_before_each_function import *  # noqa: E501, F401, F403
 from .test_framework.wallet import Wallet
+from .test_framework.blockchain.elements import Elements
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -112,46 +113,44 @@ def test_nodes_obey_the_same_rules(blockchain):
             assert 0 == len(master.rpc('getrawmempool'))
             _wait_for(lambda: 0 == len(slave.rpc('getrawmempool')))
 
-@pytest.mark.skip
+
 def test_nodes_are_validators(blockchain):
     # Node forks if and when a created block violates the commomn set of
     # rules.
-    with blockchain.nodes() as (master, slave):
-        master.create_blocks(10)
-        time.sleep(1)
-        assert master.blocks == slave.blocks
-        master.commit_bad_block()  # node[1] forks!
-        master.create_blocks(10)
-        time.sleep(1)
-        assert 21 == len(master.blocks)
-        assert 10 == len(slave.blocks)
+    if blockchain is Elements:
+        # The Bitcoin network is existence proof of this. Also, above we
+        # demonstrate that an Elements node without the signing key
+        # cannot generate blocks.
+        pass
 
 
 @pytest.mark.skip(reason='Outside current requirements')
 def test_multiple_signers(blockchain):
+    # Support of up to x-of-3 multisig is standard.
+    # See: https://github.com/ElementsProject/elements/blob/b979d442711c8c3f84d09c1b804af475616056d9/src/policy/policy.cpp#L46  # noqa: E501
+    #
+    # Also note: x-of-y is supported but non-standard. Non-standard
+    # unconfirmed transactions (y > 3) do not propogate by default.
     raise NotImplementedError
 
 
 @pytest.mark.skip
 def test_multiple_block_creators(blockchain):
-    if blockchain is Elements:
-        # TL;DR -- There is nothing to test in this case.
-        #
-        # Elements does not have native support for multiple block
-        # creators.
-        #
-        #   - There are ways to build this functionality externally to the
-        #     elements code base, but it is a non-trivial project.
-        #
-        #   - Elements claims to have this feature on their roadmap for
-        #     June 2018, they previously estimated Q1 2018.
-        #
-        #   - Elements is considering allowing non-open source licensing
-        #     of some of their technology to do this, and are "working
-        #     on a proposal for us"
-        pass
-    if blockchain is EOS:
-        raise NotImplementedError
+    # TL;DR -- There is nothing to test in this case.
+    #
+    # Elements does not have native support for multiple block
+    # creators.
+    #
+    #   - There are ways to build this functionality externally to the
+    #     elements code base, but it is a non-trivial project.
+    #
+    #   - Elements claims to have this feature on their roadmap for
+    #     June 2018, they previously estimated Q1 2018.
+    #
+    #   - Elements is considering allowing non-open source licensing
+    #     of some of their technology to do this, and are "working
+    #     on a proposal for us"
+    raise NotImplementedError
 
 
 @pytest.mark.skip
