@@ -112,7 +112,7 @@ def test_async_generate_blocks():
         pass
 
     def create_block():
-        node = Elements.Node('master')
+        node = Elements.node('master')
         try:
             result = node.generate_block()
         except JSONRPCException as e:
