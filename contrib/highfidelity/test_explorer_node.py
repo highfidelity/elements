@@ -4,9 +4,9 @@ import time
 import pytest
 
 from .test_framework.alice_and_bob import alice_and_bob
+from .test_framework.blockchain.elements import Elements
 from .test_framework.kill_elementsd_before_each_function import *  # noqa: E501, F401, F403
 from .test_framework.wallet import Wallet
-from .test_framework.blockchain.elements import Elements
 
 
 logging.basicConfig(level=logging.DEBUG)
