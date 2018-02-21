@@ -24,7 +24,7 @@ def _wait_for(function):
 
 def test_slave_sees_all_blocks_and_transactions(blockchain):
     # All nodes on a blockchain see all transactions. Think of these
-    # transactions as "proposed" lines in a giant public ledger book
+    # transactions as "proposed" lines in a giant public ledger book.
     with alice_and_bob(blockchain) as (alice, bob):
         with blockchain.node('slave') as slave:
             master = Wallet.master_node
