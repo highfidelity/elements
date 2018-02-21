@@ -14,4 +14,5 @@ def alice_and_bob(blockchain=Elements):
             with blockchain.node('bob') as node_bob:
                 bob = Wallet(node_bob)
                 bob.seed(SEED_AMOUNT)
+                Wallet.master_node.generate_block()
                 yield (alice, bob)

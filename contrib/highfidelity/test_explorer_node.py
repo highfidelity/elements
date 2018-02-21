@@ -12,7 +12,7 @@ logger = logging.getLogger('test_explorer_node')
 
 
 def _wait_for(function):
-    for _ in range(5):
+    for _ in range(10):
         if not function():
             time.sleep(1)
         else:
@@ -32,28 +32,32 @@ def test_slave_sees_all_blocks_and_transactions(blockchain):
             last_block = master.rpc('listsinceblock')['lastblock']
 
             # Wait for slave to sync initial blockchain from master.
-            _wait_for(
-                lambda: last_block == slave.rpc('listsinceblock')['lastblock'])  # noqa: E501
+            last_block = master.rpc('listsinceblock')['lastblock']
+            _wait_for(lambda: last_block == slave.rpc('listsinceblock')['lastblock'])  # noqa: E501
+
+            # Generate and verify transmission of a new block. Also
+            # check size of master and slave mempool.
+            #
+            # N.B. Unconfirmed transactions existing prior to the slave-
+            # master connection are not forwarded to the slave. The test
+            # does not make this apparent.
+            assert 0 == len(master.rpc('getrawmempool'))
+            assert 0 == len(slave.rpc('getrawmempool'))
 
             # Confirm that slave is aware of unconfirmed transactions.
+            alice.transact(alice, bob, 10)
             rawmempool = master.rpc('getrawmempool')
+            assert 0 < len(rawmempool)
             _wait_for(lambda: rawmempool == slave.rpc('getrawmempool'))
 
-            # Generate and verify existence of a new block.
+            # Verify that all transactions are confirmed in the new block.
             master.generate_block()
-            last_block_new = master.rpc('listsinceblock')['lastblock']
-            assert last_block != last_block_new
-
-            # Verify that all transactions have been confirmed.
             assert 0 == len(master.rpc('getrawmempool'))
+            _wait_for(lambda: 0 == len(slave.rpc('getrawmempool')))
 
             # Wait for new block to propagate to slave.
-            expected = last_block_new
-            _wait_for(
-                lambda: expected == slave.rpc('listsinceblock')['lastblock'])
-
-            # Ensure that slave has no uncommited transactions.
-            assert 0 == len(slave.rpc('getrawmempool'))
+            last_block = master.rpc('listsinceblock')['lastblock']
+            _wait_for(lambda: last_block == slave.rpc('listsinceblock')['lastblock'])  # noqa: E501
 
 
 @pytest.mark.skip
