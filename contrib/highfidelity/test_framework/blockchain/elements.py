@@ -116,14 +116,15 @@ class Elements(Blockchain):
         name,
         _warm_up_master=False,
         _ensure_signing_key=True,
-        _pdb_on_exception=True
+        _pdb_on_exception=True,
+        _debug=True
     ):
         if _ensure_signing_key:
-            cls._ensure_signing_key()
+            cls._ensure_signing_key(_debug)
         try:
             with tempfile.TemporaryDirectory() as datadir:
                 try:
-                    process = cls._spawn_node_process(name, datadir)
+                    process = cls._spawn_node_process(name, datadir, _debug)
                     node = cls.Node(name, datadir)
                     if 'master' == name:
                         if _warm_up_master:
@@ -160,11 +161,12 @@ class Elements(Blockchain):
                 raise cls.FailedToGenerateBlockError(result)
 
     @classmethod
-    def _ensure_signing_key(cls):
+    def _ensure_signing_key(cls, debug):
         if not cls.signing_pubkey:
             with cls.node(
                 'bootstrap_signing_key',
-                _ensure_signing_key=False
+                _ensure_signing_key=False,
+                _debug=debug
             ) as node:
                 address = node.rpc('getnewaddress')
                 result = node.rpc('validateaddress', address)
@@ -174,7 +176,7 @@ class Elements(Blockchain):
                 cls.signing_privkey = node.rpc('dumpprivkey', address)
 
     @classmethod
-    def _spawn_node_process(cls, node_name, datadir):
+    def _spawn_node_process(cls, node_name, datadir, debug):
         cls._configure_node_process(node_name, datadir)
         elementsd_path = os.path.join(
             os.path.dirname(os.path.realpath(__file__)),
@@ -184,6 +186,7 @@ class Elements(Blockchain):
         if node_name in ('master', 'slave'):
             # Specify a 1-of-1 multisig script as a block requirement.
             args.append(f'-signblockscript=5121{cls.signing_pubkey}51ae')
+        args.append(f'-debug={1 if debug else 0}')
         return subprocess.Popen([elementsd_path, *args])
 
     @classmethod
