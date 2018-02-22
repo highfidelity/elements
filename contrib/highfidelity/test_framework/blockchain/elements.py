@@ -11,7 +11,11 @@ from ..error import Error
 from .blockchain import Blockchain
 
 
-REQUIRED_CONFIG_KEYS = {'rpcuser', 'rpcpassword', 'rpcport'}
+REQUIRED_CONFIG_KEYS = {'rpcuser', 'rpcpassword'}
+OPTIONAL_CONFIG_KEYS = {'rpcport'}
+DEFAULTS = {
+    'rpcport': 7041
+}
 
 
 def config_filepath(node_name):
@@ -72,7 +76,10 @@ class Elements(Blockchain):
             with open(filename, 'r') as file:
                 config = self._config_from_file(filename, file)
             self._check_for_required_config_keys(set(config.keys()), filename)
-            return {k: config[k] for k in REQUIRED_CONFIG_KEYS}
+            result = {k: config[k] for k in REQUIRED_CONFIG_KEYS}
+            for k in OPTIONAL_CONFIG_KEYS:
+                result[k] = config[k] if k in config else DEFAULTS[k]
+            return result
 
         def _config_from_file(self, filename, file):
             config = {'filename': filename}
