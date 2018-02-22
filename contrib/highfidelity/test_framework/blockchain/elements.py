@@ -147,6 +147,9 @@ class Elements(Blockchain):
                         #
                         # Catch all exceptions here so that the tempfile
                         # remains open for examination.
+                        import traceback
+                        print(e)
+                        traceback.print_tb(e.__traceback__)
                         import pdb; pdb.set_trace()  # noqa
                     raise
         except OSError as e:
