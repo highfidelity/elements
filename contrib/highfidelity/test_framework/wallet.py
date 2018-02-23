@@ -1,3 +1,5 @@
+import decimal
+
 from .error import Error
 
 # MONEY_ASSET_ID = 'bitcoin'
@@ -41,7 +43,8 @@ class Wallet:
         output_asset_ids={},
         utxo_details=[]
     ):
-        # utxo_details are unspent transaction ot
+        # utxo_details are unspent transaction outputs
+        assert isinstance(amount, (int, decimal.Decimal))
         if sender:
             result = cls._transact(
                 sender, receiver, amount, output_asset_ids, utxo_details)
