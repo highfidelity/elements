@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -43,6 +44,23 @@ class Elements(Blockchain):
 
         _logger = logging.getLogger('Node')
 
+        @property
+        def _proxy(self):
+            if 'gevent' in sys.modules:
+                self._ensure_local()
+                result = self._local._proxy
+            else:
+                result = self.__proxy
+            return result
+
+        @_proxy.setter
+        def _proxy(self, value):
+            if 'gevent' in sys.modules:
+                self._ensure_local()
+                self._local._proxy = value
+            else:
+                self.__proxy = value
+
         def __init__(
             self,
             name,
@@ -53,7 +71,11 @@ class Elements(Blockchain):
             self.name = name
             self.datadir = datadir
             self._is_up = False
-            self._proxy = None
+            if 'gevent' in sys.modules:
+                self._local = sys.modules['gevent'].local.local()
+                self._local._proxy = None
+            else:
+                self.__proxy = None
 
         def rpc(self, command, *args):
             self._ensure_is_up()
@@ -65,6 +87,12 @@ class Elements(Blockchain):
             blockresult = self.rpc('combineblocksigs', blockhex, [sign1])
             signedblock = blockresult["hex"]
             return self.rpc('submitblock', signedblock)
+
+        def _ensure_local(self):
+            if not hasattr(self, '_local'):
+                self._local = sys.modules['gevent'].local.local()
+            if not hasattr(self._local, '_proxy'):
+                self._local._proxy = None
 
         def _auth_service_proxy(self):
             config = self._load_config()
