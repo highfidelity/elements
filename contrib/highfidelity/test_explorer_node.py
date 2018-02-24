@@ -1,12 +1,19 @@
+from gevent import monkey; monkey.patch_all()  # noqa: E702
+
+import decimal
 import logging
+import random
+import sys
 import time
 
+import gevent
 import pytest
 
 from .test_framework.alice_and_bob import alice_and_bob
+from .test_framework.authproxy import JSONRPCException
 from .test_framework.blockchain.elements import Elements
 from .test_framework.kill_elementsd_before_each_function import *  # noqa: E501, F401, F403
-from .test_framework.wallet import Wallet
+from .test_framework.wallet import Wallet, DEFAULT_FEE
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -175,3 +182,177 @@ def test_second_node_cannot_add_transactions(blockchain):
             # The slave, which does not possess the block signing key,
             # cannot generate a block.
             assert 'block-proof-invalid' == slave.generate_block()
+
+
+def test_stress(blockchain):
+    # IN THEORY
+    #
+    # The elementd defaults provide for 20 concurrent rpc slots, 4
+    # active and 16 queued. We reserve 1 of these slots for the
+    # BlockGenerator, which periodically generates blocks, and allocate
+    # the rest to Marketplace, which submits transactions as soon as
+    # slots come available.
+    #
+    # MAX_MARKETPLACE_CONCURRENCY = 19
+
+    # IN PRACTICE
+    #
+    # Either the AuthServiceProxy or elemenends itself misbehaves in
+    # response to face of rpc concurrency. So, set concurrency to 1.
+    MAX_MARKETPLACE_CONCURRENCY = 1
+
+    TEST_DURATION = 30
+
+    # Do not slow things down with console logging.
+    logging.disable(logging.CRITICAL)
+
+    def _post_mortem(greenlet):
+        """Drop to pdb upon exception other than GreenletExit."""
+        if greenlet.exc_info[0] != gevent.GreenletExit:
+            sys.modules['pdb'].post_mortem(greenlet.exc_info[2])
+
+    def spawn(*args, **kwargs):
+        """Spawn a greenlet that drops to pdb upon uncaught exception[*].
+
+        * Not including GreenletExit, which indicates normal termination.
+
+        """
+        result = gevent.Greenlet(*args, **kwargs)
+        # result.link_exception(_post_mortem)
+        result.start()
+        return result
+
+    def pool_spawn(pool, *args, **kwargs):
+        result = gevent.Greenlet(*args, **kwargs)
+        # result.link_exception(_post_mortem)
+        pool.start(result)
+        return result
+
+    class Marketplace:
+        def __init__(self, alice, bob, block_generator):
+            self.transactions_n = 0
+            self.retries = list()
+            self._alice = alice
+            self._bob = bob
+            self._pool = gevent.pool.Pool(MAX_MARKETPLACE_CONCURRENCY)
+            self._is_stopped = False
+            self._block_generator = block_generator
+
+        def start(self):
+            self._greenlet = spawn(self._run)
+
+        def stop(self):
+            self._is_stopped = True
+            self._greenlet.join()
+            self._pool.join()
+
+        def _run(self):
+            """Generate concurrent, random transactions.
+
+            Note: Concurreny is limited by MAX_MARKETPLACE_CONCURRENCY.
+
+            """
+            while not self._is_stopped:
+                pool_spawn(self._pool, self._submit_transaction)
+
+        def _submit_transaction(self):
+            amount = (
+                DEFAULT_FEE * 2 + decimal.Decimal(random.random())
+            ).quantize(decimal.Decimal(10)**-3)
+            choice = random.random() < .5
+            try:
+                if choice:
+                    alice.transact(alice, bob, amount)
+                else:
+                    alice.transact(bob, alice, amount)
+                self.transactions_n += 1
+            except JSONRPCException as e:
+                self._block_generator.generate_block()
+
+    class BlockGenerator:
+        def __init__(self):
+            self._semaphore = gevent.lock.Semaphore(0)
+            self._is_generating_block = False
+            self._is_stopped = False
+            self.blocks_n = 0
+
+        def start(self):
+            self._greenlet = spawn(self._run)
+
+        def stop(self):
+            self._is_stopped = True
+            self.generate_block()
+            self._greenlet.join()
+
+        def generate_block(self):
+            if not self._is_generating_block and self._semaphore.locked():
+                self._semaphore.release()
+
+        def _run(self):
+            try:
+                while not self._is_stopped:
+                    self._semaphore.acquire()
+                    self._is_generating_block = True
+                    Wallet.master_node.generate_block()
+                    self._is_generating_block = False
+                    self.blocks_n += 1
+            except Exception as e:
+                import pdb; pdb.set_trace()  # noqa
+                pass
+
+    def _run_test(alice, bob, slave=None):
+        block_generator = BlockGenerator()
+        marketplace = Marketplace(alice, bob, block_generator)
+        block_generator.start()
+        marketplace.start()
+        time.sleep(10)
+        marketplace.stop()
+        block_generator.stop()
+
+        if slave:
+            # Wait for slave to sync initial blockchain from master.
+            logger.info('wainting for nodes to sync...')
+            time_start = time.time()
+            last_block = Wallet.master_node.rpc('listsinceblock')['lastblock']
+            _wait_for(lambda: last_block == slave.rpc('listsinceblock')['lastblock'])  # noqa: E501
+            time_finish = time.time()
+
+            elapsed = time_finish - time_start
+            print(f'seconds to sync: {(elapsed):.2f}')
+
+        all_transactions = Wallet.master_node.rpc(
+            'listreceivedbyaddress',
+            0,      # include all transactions, even unconfirmed ones
+            False,  # do not display addresses never receiving a payment
+            True)   # include watch-only addresses
+
+        confirmed_transactions = Wallet.master_node.rpc(
+            'listreceivedbyaddress',
+            1,      # include transcations having 1+ confirmations
+            False,  # do not display addresses never receiving a payment
+            True)   # include watch-only addresses
+
+        assert all_transactions == confirmed_transactions
+
+        actual = {x['address'] for x in all_transactions}
+        expected = {alice.address, bob.address}
+        assert expected == actual
+
+        txids_0 = all_transactions[0]['txids']
+        txids_1 = all_transactions[1]['txids']
+        assert len(txids_0) == len(txids_1)
+        assert len(txids_0) - 1 == marketplace.transactions_n
+
+        print(f'total transactions: {len(txids_0)}')
+        print(f'total blocks: {block_generator.blocks_n}')
+        print(f'transactions per second: {len(txids_0) / TEST_DURATION}')
+        print(f'transactions per block: {len(txids_0) / block_generator.blocks_n}')  # noqa: E501
+
+    print('\nrunning test without slave...')
+    with alice_and_bob(blockchain, debug=False) as (alice, bob):
+        _run_test(alice, bob)
+
+    print('\nrunning test with slave...')
+    with alice_and_bob(blockchain, debug=False) as (alice, bob):
+        with blockchain.node('slave', _debug=False) as slave:
+            _run_test(alice, bob, slave)
