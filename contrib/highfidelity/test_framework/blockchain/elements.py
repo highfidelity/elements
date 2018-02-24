@@ -46,20 +46,19 @@ class Elements(Blockchain):
 
         @property
         def _proxy(self):
-            if 'gevent' in sys.modules:
-                self._ensure_local()
-                result = self._local._proxy
+            if hasattr(self, '_local'):
+                result = None if not hasattr(self._local, '_proxy') else \
+                    self._local._proxy
             else:
-                result = self.__proxy
+                result = self._proxy
             return result
 
         @_proxy.setter
         def _proxy(self, value):
-            if 'gevent' in sys.modules:
-                self._ensure_local()
+            if hasattr(self, '_local'):
                 self._local._proxy = value
             else:
-                self.__proxy = value
+                self._proxy = value
 
         def __init__(
             self,
@@ -68,14 +67,12 @@ class Elements(Blockchain):
             total_attempts=5,
             interval_seconds=2.0
         ):
+            if 'gevent' in sys.modules:
+                self._local = sys.modules['gevent'].local.local()
             self.name = name
             self.datadir = datadir
             self._is_up = False
-            if 'gevent' in sys.modules:
-                self._local = sys.modules['gevent'].local.local()
-                self._local._proxy = None
-            else:
-                self.__proxy = None
+            self._proxy = None
 
         def rpc(self, command, *args):
             self._ensure_is_up()
@@ -87,12 +84,6 @@ class Elements(Blockchain):
             blockresult = self.rpc('combineblocksigs', blockhex, [sign1])
             signedblock = blockresult["hex"]
             return self.rpc('submitblock', signedblock)
-
-        def _ensure_local(self):
-            if not hasattr(self, '_local'):
-                self._local = sys.modules['gevent'].local.local()
-            if not hasattr(self._local, '_proxy'):
-                self._local._proxy = None
 
         def _auth_service_proxy(self):
             config = self._load_config()
