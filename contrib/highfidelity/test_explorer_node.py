@@ -193,13 +193,7 @@ def test_stress(blockchain):
     # the rest to Marketplace, which submits transactions as soon as
     # slots come available.
     #
-    # MAX_MARKETPLACE_CONCURRENCY = 19
-
-    # IN PRACTICE
-    #
-    # Either the AuthServiceProxy or elemenends itself misbehaves in
-    # response to face of rpc concurrency. So, set concurrency to 1.
-    MAX_MARKETPLACE_CONCURRENCY = 1
+    MAX_MARKETPLACE_CONCURRENCY = 19
 
     TEST_DURATION = 30
 
@@ -218,23 +212,23 @@ def test_stress(blockchain):
 
         """
         result = gevent.Greenlet(*args, **kwargs)
-        # result.link_exception(_post_mortem)
+        result.link_exception(_post_mortem)
         result.start()
         return result
 
     def pool_spawn(pool, *args, **kwargs):
         result = gevent.Greenlet(*args, **kwargs)
-        # result.link_exception(_post_mortem)
+        result.link_exception(_post_mortem)
         pool.start(result)
         return result
 
     class Marketplace:
-        def __init__(self, alice, bob, block_generator):
+        def __init__(self, alice, bob, block_generator, concurrency):
             self.transactions_n = 0
             self.retries = list()
             self._alice = alice
             self._bob = bob
-            self._pool = gevent.pool.Pool(MAX_MARKETPLACE_CONCURRENCY)
+            self._pool = gevent.pool.Pool(concurrency)
             self._is_stopped = False
             self._block_generator = block_generator
 
@@ -300,9 +294,11 @@ def test_stress(blockchain):
                 import pdb; pdb.set_trace()  # noqa
                 pass
 
-    def _run_test(alice, bob, slave=None):
+    results = {'solo': [], 'pair': []}
+
+    def _run_test(alice, bob, slave=None, concurrency=None):
         block_generator = BlockGenerator()
-        marketplace = Marketplace(alice, bob, block_generator)
+        marketplace = Marketplace(alice, bob, block_generator, concurrency)
         block_generator.start()
         marketplace.start()
         time.sleep(10)
@@ -332,27 +328,44 @@ def test_stress(blockchain):
             False,  # do not display addresses never receiving a payment
             True)   # include watch-only addresses
 
-        assert all_transactions == confirmed_transactions
-
         actual = {x['address'] for x in all_transactions}
         expected = {alice.address, bob.address}
-        assert expected == actual
+        if expected != actual:
+            import pdb; pdb.set_trace()  # noqa
+            pass
 
-        txids_0 = all_transactions[0]['txids']
-        txids_1 = all_transactions[1]['txids']
-        assert len(txids_0) == len(txids_1)
-        assert len(txids_0) - 1 == marketplace.transactions_n
+        if len(all_transactions[0]['txids']) != \
+           len(all_transactions[1]['txids']) != \
+           len(confirmed_transactions[0]['txids']) - 1 != \
+           len(confirmed_transactions[1]['txids']) - 1 != \
+           marketplace.transactions_n:
+            import pdb; pdb.set_trace()  # noqa
+            pass
 
-        print(f'total transactions: {len(txids_0)}')
+        txids_n = len(all_transactions[0]['txids'])
+        print(f'total transactions: {txids_n}')
         print(f'total blocks: {block_generator.blocks_n}')
-        print(f'transactions per second: {len(txids_0) / TEST_DURATION}')
-        print(f'transactions per block: {len(txids_0) / block_generator.blocks_n}')  # noqa: E501
+        print(f'transactions per second: {txids_n / TEST_DURATION}')
+        print(f'transactions per block: {txids_n / block_generator.blocks_n}')  # noqa: E501
 
-    print('\nrunning test without slave...')
-    with alice_and_bob(blockchain, debug=False) as (alice, bob):
-        _run_test(alice, bob)
+        return txids_n / TEST_DURATION
 
-    print('\nrunning test with slave...')
-    with alice_and_bob(blockchain, debug=False) as (alice, bob):
-        with blockchain.node('slave', _debug=False) as slave:
-            _run_test(alice, bob, slave)
+    for concurrency in range(1, MAX_MARKETPLACE_CONCURRENCY):
+        print(f'\nrunning test without slave (concurrency={concurrency})...')
+        with alice_and_bob(blockchain, debug=False) as (alice, bob):
+            results['solo'].append((
+                concurrency,
+                _run_test(alice, bob, None, concurrency)))
+
+        print(f'\nrunning test with slave (concurrency={concurrency})...')
+        with alice_and_bob(blockchain, debug=False) as (alice, bob):
+            with blockchain.node('slave', _debug=False) as slave:
+                results['pair'].append((
+                    concurrency,
+                    _run_test(alice, bob, slave, concurrency)))
+
+    with open('result.csv', 'w') as f:
+        f.write('concurrency,txns_sec_solo,txns_sec_pair\n')
+        for x in zip(results['solo'], results['pair']):
+            f.write(f'{x[0][0]},{x[0][1]},{x[1][1]}')
+            f.write('\n')
