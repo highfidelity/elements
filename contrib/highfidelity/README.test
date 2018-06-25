@@ -1,0 +1,30 @@
+SETUP
+
+Install https://github.com/pyenv/pyenv-virtualenv
+
+Then:
+
+    pyenv install 3.6.4
+    pyenv virtualenv 3.6.4 elements
+    pip install -f requirements.txt
+
+Having trouble with `pyenv install`?
+See: https://github.com/pyenv/pyenv/wiki/Common-build-problems
+
+
+RUN THE TESTS
+
+To ensure that Elements can perform the basic function of building a
+blockchain from scratch with signed blocks. Also tests the sanity of our
+Elements class implementation, which is used in test_secondary_node.py
+tests:
+
+    pytest test_elements_sanity.py -s
+
+
+[WORK IN PROGRESS] To test various use cases involving a master node and
+a "slave" node that enables a third-party blockchain exporer but does
+not enable the submission of transactions or the signing of blocks:
+
+    pytest test_explorer_node.py -s
+
